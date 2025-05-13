@@ -1,0 +1,15 @@
+html {
+    background: rgb(222, 167, 195);
+  }
+
+ol{
+    border: 4px double black;
+}
+
+ol.top{
+    font-family: papyrus;
+}
+
+p{
+    border: 10px solid springgreen;
+}
