@@ -89,3 +89,88 @@ function registerGeoLocate(mapInstance) {
   mapInstance.on('locationerror', onLocationError);
 }
 registerGeoLocate(map)
+
+
+function registerWFSReadAndWriteLayer(mapInstance, toc) {
+  // Settings - These need to agree with the definition of the WFS layer in Geoserver
+  var namespace_prefix = "anne";
+  var namespace_uri = "http://all.kinds.of.data";
+  var server_url = "http://localhost:8080"
+  var layer_name = "pois"
+  var geom_column_name = "geom"
+  // End Settings
+
+  // reading the layer from the WFS
+  var url = server_url + '/geoserver/wfs?';
+  // These are the basic parameters for a WFS request (important: Use EPSG:4326 for Leaflet GeoJSON)
+  var params = 'service=WFS&version=2.0.0&request=GetFeature&outputFormat=application/json&srsName=EPSG:4326&';
+
+  // Specify the WFS feature type that you request from the WFS service
+  // In this case the geo1007:pois table:
+  params += 'typeName=' + namespace_prefix + ':' + layer_name + '&';
+  // If problems with loading time: limit amount of features (for debug)
+  //params += 'maxFeatures=400&';
+  params += 'count=20000&';
+
+  var styleParams = {
+      color: 'black',
+      fillColor: 'green',
+      weight: 1.0,
+      opacity: 0.6,
+      fillOpacity: 0.4
+  };
+
+  // WFS layer
+  var pois_wfs = GeojsonFromWFS(url, params, styleParams);
+  pois_wfs.addTo(mapInstance);
+
+  // Show this layer in the ToC
+  toc.addOverlay(pois_wfs, "PoI")
+
+  // Function to insert data, using WFS-T
+  function performInsert(lng, lat, poi_name, reported_by) {
+
+      var url_wfs = server_url + "/geoserver/" + namespace_prefix + "/ows?";
+      var featuretype = namespace_prefix + ":" + layer_name;
+      var geomPropertyName = namespace_prefix + ":" + geom_column_name;
+
+      var featProperties = [
+      { "name": namespace_prefix + ":poi_name", "value": poi_name },
+      { "name": namespace_prefix + ":reported_by", "value": reported_by }
+      ];
+
+      var layerToUpdate = pois_wfs;
+      insertPoint(url_wfs, featuretype, namespace_prefix, namespace_uri, featProperties, geomPropertyName, lng, lat, layerToUpdate);
+  }
+  return performInsert; // return function reference to be able to insert data
+}
+let insertWFS = registerWFSReadAndWriteLayer(map, toc)
+
+function registerPopUpForInsert(mapInstance) {
+  var popup = L.popup();
+
+  function onMapClick(e) {
+      var lng = e.latlng.lng;
+      var lat = e.latlng.lat;
+
+      var js_function = ''
+      + ' var poi_name = document.getElementById(\'poi_name\').value ; '
+      + ' var reported_by = document.getElementById(\'reported_by\').value ; '
+      + ' insertWFS(' + lng + ',' + lat + ', poi_name, reported_by) ; ';
+
+      var popupContent = ''
+      + '<label for="poi_name">Point of Interest: </label><br>'
+      + '<input type="text" id="poi_name" name="poi_name" value=""><br>'
+      + '<label for="reported_by" >Reported by: </label><br>'
+      + '<input type="text" id="reported_by" name="reported_by" value=""><br>'
+      + '<button type="button" onclick="' + js_function + '">Insert point</button>';
+
+      popup
+      .setLatLng(e.latlng)
+      .setContent(popupContent)
+      .openOn(mapInstance);
+  }
+
+  mapInstance.on('click', onMapClick);
+}
+registerPopUpForInsert(map)
